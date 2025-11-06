@@ -142,7 +142,7 @@ Common keyboard codes:
 - `00010416` - Brazilian ABNT2
 
 See
-[Microsoft's documentation](https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/default-input-locales-and-keyboard-layouts)
+[Microsoft's documentation](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/windows-language-pack-default-values)
 for a full list of language and keyboard codes.
 
 ## License

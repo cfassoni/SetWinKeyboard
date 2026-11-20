@@ -1,174 +1,55 @@
-# Windows Keyboard Layout Configuration Scripts
+# SetWinKeyboard
 
-## O Problema
+Scripts em PowerShell para manter apenas os layouts de teclado desejados no Windows e impedir que layouts extras continuem aparecendo no menu `Win + Espaço`.
 
-O Windows tem o hábito frustrante de adicionar ou alterar layouts de teclado automaticamente, sem qualquer ação do usuário. Isso costuma acontecer quando:
+## O problema
 
-- Instala atualizações do Windows
-- Conecta-se a sessões de Área de Trabalho Remota (RDP)
-- Instala pacotes de idiomas
-- Alterna entre diferentes fontes de entrada
-- Reinicia após updates cumulativos
+O Windows costuma adicionar ou manter layouts de teclado indesejados (como **ABNT** padrão ou **Estados Unidos Internacional**) após atualizações do sistema, sessões de Área de Trabalho Remota (RDP), abertura de determinados aplicativos ou reinicializações.
 
-Essas mudanças indesejadas atrapalham o fluxo de trabalho, especialmente para usuários que utilizam apenas **pt-BR**, mas o Windows insiste em adicionar:
+Mesmo quando a lista de idiomas é ajustada nas configurações, o Windows ainda pode manter layouts "fantasmas" carregados na sessão ativa, fazendo com que eles continuem aparecendo ao alternar o teclado com `Win + Espaço`.
 
-- en-US  
-- US-QWERTY  
-- ABNT “padrão”  
-- layouts duplicados  
+## Como funciona
 
-O resultado é a necessidade constante de reconfigurar manualmente o teclado — algo que deveria ser simples, mas o Windows insiste em desfazer.
+O repositório é composto por dois scripts que atuam em conjunto:
 
----
+### 1. `Set-KeyboardLayouts.ps1` — Limpeza e configuração
+Responsável por aplicar a configuração desejada no sistema em duas etapas:
+1. **Redefine a lista de idiomas do usuário** para manter apenas:
+   - **Português (Brasil) — ABNT2** (`pt-BR` / `0416:00010416`)
+   - **Inglês (Estados Unidos) — US** (`en-US` / `0409:00000409`)
+2. **Descarrega layouts "fantasmas" da sessão ativa** usando a API do Windows (`UnloadKeyboardLayout`), removendo imediatamente do `Win + Espaço` qualquer layout extra que ainda esteja carregado em memória.
 
-## A Solução
+### 2. `Register-KeyboardTask.ps1` — Automação
+Cria a tarefa agendada **`ConfigureKeyboardLayouts`** no Agendador de Tarefas do Windows para executar o script de limpeza automaticamente:
+- **Quando executa:** no logon do usuário atual e a cada **3 horas**.
+- **Como executa:** em segundo plano (janela oculta), com privilégios elevados e mesmo quando o computador está na bateria.
+- **Compatibilidade automática:** detecta se o PowerShell 7 (`pwsh`) está instalado e, caso não esteja, utiliza automaticamente o Windows PowerShell 5.1 nativo do sistema.
+- **Recriação segura:** se a tarefa já existir, ela é removida e registrada novamente com as configurações atuais.
 
-Este repositório contém scripts PowerShell que impedem o Windows de recriar layouts indesejados e garantem que somente os layouts definidos pelo usuário sejam mantidos.
+> Como a tarefa aponta diretamente para o arquivo `Set-KeyboardLayouts.ps1` na pasta do repositório, qualquer ajuste futuro nos layouts passa a valer automaticamente na próxima execução.
 
-Os scripts:
+## Como usar
 
-- Removem qualquer layout de teclado não autorizado
-- Configuram apenas os layouts especificados
-- Reaplicam automaticamente a configuração
-- Executam no logon e periodicamente para evitar que o Windows reverta as mudanças
-
----
-
-## Visão Geral dos Scripts
-
-### `Set-KeyboardLayouts.ps1`
-
-O script principal que aplica a configuração de layouts. Ele:
-
-- Remove todos os idiomas e layouts existentes
-- Mantém somente o idioma **pt-BR (0416)**
-- Adiciona apenas os seguintes layouts:
-  - **ABNT2** (`00010416`)
-  - **US-International** (`00020409`)
-- Aplica a nova configuração ao sistema
-- Exibe o resultado final
-- Inclui tratamento de erro (`try/catch`)
-- Requer privilégios de Administrador
-
-Este script é responsável por corrigir imediatamente qualquer alteração indesejada feita pelo Windows.
-
-
-### `Register-KeyboardTask.ps1`
-
-Cria uma tarefa agendada no Windows para executar automaticamente o script acima. A tarefa:
-
-- Executa no logon do usuário atual
-- Executa novamente a cada **3 horas**
-- Roda com privilégios elevados
-- Mantém o script invisível (janela minimizada)
-- Remove tarefas antigas antes de recriar
-- Verifica se o script principal existe
-- Exibe detalhes da tarefa criada
-
-Essa tarefa garante que, mesmo após atualizações do Windows ou eventos do sistema, os layouts corretos sejam restaurados automaticamente.
-
-## Como Usar
-
-### Configuração Inicial
-
-1. **Clone ou baixe este repositório** para sua máquina.
-
-2. **Verifique os layouts desejados** (opcional):
-
-   O script já está configurado para usar:
-
-   - **ABNT2**
-   - **US-International**
-
-   Caso queira alterar, edite a tabela:
-
-   ```
-   $desiredLayouts = @{
-       "0416" = @(
-           "00010416",  # ABNT2
-           "00020409"   # US-International
-       )
-   }
-
-### Guia de Execução e Gerenciamento
-
-#### Execute o script de configuração (como Administrador):
-
-```
-.\Set-KeyboardLayouts.ps1
-````
-
-#### Crie a tarefa automática (como Administrador):
-
-```
-.\Register-KeyboardTask.ps1
-```
-
-
-## Gerenciando a Tarefa Agendada
-
-### Ver a tarefa:
-
-```
-Get-ScheduledTask -TaskName 'ConfigureKeyboardLayouts'
-```
-
-### Executar imediatamente:
-
-```
-Start-ScheduledTask -TaskName 'ConfigureKeyboardLayouts'
-```
-
-### Remover a tarefa:
-
-```
-Unregister-ScheduledTask -TaskName 'ConfigureKeyboardLayouts' -Confirm:$false
-```
-
-## Execução Manual
-
-Se preferir não usar a tarefa agendada, você pode executar:
-
-```
-.\Set-KeyboardLayouts.ps1
-```
-sempre que o Windows alterar seus layouts de teclado.
-
----
-
-## Requisitos
-- Windows 10 ou superior
-- PowerShell 7+ (pwsh) — recomendado
-- Privilégios de Administrador
-- Execução de scripts habilitada (`ExecutionPolicy Bypass` já é aplicado automaticamente)
-
----
-
-## Observações
-- Após aplicar a configuração, pode ser necessário sair e entrar novamente na conta para que o Windows atualize todos os componentes.
-- A tarefa agendada roda com privilégios elevados para garantir que possa modificar configurações de idioma.
-- A tarefa é configurada para rodar mesmo em laptops usando bateria.
-- Se você modificar o script `Set-KeyboardLayouts.ps1`, a tarefa agendada aplicará automaticamente as mudanças na próxima execução.
-
----
+1. Abra o PowerShell **como Administrador** na pasta do projeto.
+2. Execute `.\Set-KeyboardLayouts.ps1` para aplicar a limpeza imediatamente.
+3. Execute `.\Register-KeyboardTask.ps1` para registrar a execução automática.
 
 ## Personalização
-Para adicionar ou alterar layouts, edite a tabela:
 
-```
-$desiredLayouts = @{
-    "0416" = @("KeyboardCode1", "KeyboardCode2")
-}
-```
+Os layouts mantidos são definidos na variável `$desiredLayouts` no início de `Set-KeyboardLayouts.ps1`, agrupados por idioma (`pt-BR`, `en-US`, etc.) com seus respectivos códigos de entrada.
 
-Códigos comuns:
-- `00010416` — ABNT2
-- `00020409` — US-International
+A lista oficial de códigos de idioma e layout do Windows está disponível na [documentação da Microsoft](https://learn.microsoft.com/pt-pt/windows-hardware/manufacture/desktop/windows-language-pack-default-values?view=windows-11).
 
-Lista completa de códigos:
-https://learn.microsoft.com/pt-pt/windows-hardware/manufacture/desktop/windows-language-pack-default-values?view=windows-11
+## Gerenciamento
 
----
+A tarefa agendada pode ser consultada, executada manualmente ou removida pelo **Agendador de Tarefas** do Windows (nome: `ConfigureKeyboardLayouts`) ou via PowerShell usando os cmdlets nativos `Get-ScheduledTask`, `Start-ScheduledTask` e `Unregister-ScheduledTask`.
+
+## Requisitos
+
+- Windows 10 ou 11
+- Windows PowerShell 5.1 (nativo) ou PowerShell 7+ (`pwsh`)
+- Privilégios de Administrador
 
 ## Licença
-Sinta-se à vontade para usar, modificar e distribuir estes scripts conforme necessário.
+
+Distribuído sob a licença MIT. Baseado originalmente no projeto de [Celso Fassoni](https://github.com/cfassoni). Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
